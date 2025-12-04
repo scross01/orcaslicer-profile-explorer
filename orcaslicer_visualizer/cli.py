@@ -25,7 +25,7 @@ def main(target: Optional[str], output: str, input_dir: str, compare: Optional[s
         return
 
     # Determine which profile types to load
-    profile_type_list = [profile_types] if profile_types else ["filament"]
+    profile_type_list = [profile_types] if profile_types else ["filament", "machine", "process"]
 
     # Create analyzer
     analyzer = ProfileAnalyzer(input_dir)

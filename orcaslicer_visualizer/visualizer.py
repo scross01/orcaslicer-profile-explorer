@@ -17,7 +17,7 @@ class GraphVisualizer:
 
         if user_only:
             # Only show branches that include user-defined profiles
-            relevant_profiles = self.analyzer.get_branches_with_user_profiles()
+            relevant_profiles = self.analyzer.get_branches_with_user_profiles(profile_types)
             for profile in relevant_profiles:
                 if profile.profile_type in profile_types:
                     self._add_profile_node(dot, profile)
@@ -71,21 +71,40 @@ class GraphVisualizer:
         """Add a profile node to the graph"""
         # Create a label with profile name and key information
         label_parts = [profile.name]
-        
+
         # Add vendor if available
         vendor = profile.settings.get('filament_vendor')
         if vendor and isinstance(vendor, list) and len(vendor) > 0:
             label_parts.append(f"Vendor: {vendor[0]}")
-        
-        # Add file location
-        label_parts.append(f"File: {profile.file_path.split('/')[-1]}")
-        
+
+        # Extract directory name to show profile type
+        import os
+        profile_dir = os.path.basename(os.path.dirname(profile.file_path))
+        filename = os.path.basename(profile.file_path)
+        label_parts.append(f"{profile_dir}/{filename}")
+
         label = r'\n'.join(label_parts)
-        
-        # Set color based on source (system vs user)
-        fillcolor = 'lightblue' if profile.from_system else 'lightyellow'
-        
-        dot.node(profile.name, label=label, fillcolor=fillcolor)
+
+        # Set color based on profile type and source
+        if profile.profile_type == "filament":
+            fillcolor = 'lightblue' if profile.from_system else 'lightyellow'
+        elif profile.profile_type == "machine":
+            fillcolor = 'lightgreen' if profile.from_system else 'lightcoral'
+        elif profile.profile_type == "process":
+            fillcolor = 'lightcyan' if profile.from_system else 'plum'
+        else:
+            # Default color for unknown types
+            fillcolor = 'lightgray' if profile.from_system else 'lavender'
+
+        # Set shape based on profile type
+        if profile.profile_type == "machine":
+            shape = 'ellipse'
+        elif profile.profile_type == "process":
+            shape = 'diamond'
+        else:  # filament or default
+            shape = 'box'
+
+        dot.node(profile.name, label=label, fillcolor=fillcolor, shape=shape)
     
     def _add_inheritance_edge(self, dot: graphviz.Digraph, parent_name: str, child_name: str):
         """Add an inheritance edge from parent to child"""

@@ -84,19 +84,30 @@ class ProfileAnalyzer:
         try:
             with open(profile_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                
+
             name = data.get('name')
             if name:
                 inherits = data.get('inherits')
                 from_system = data.get('from', '').lower() == 'system'
-                
+
+                # Determine profile type from JSON data or directory structure
+                profile_type = data.get('type', 'filament')
+
+                # If type is not explicitly specified in the JSON, infer from directory
+                if profile_type == 'filament':
+                    path_str = str(profile_path)
+                    if '/process/' in path_str:
+                        profile_type = 'process'
+                    elif '/machine/' in path_str:
+                        profile_type = 'machine'
+
                 self.profiles[name] = Profile(
                     name=name,
                     inherits=inherits,
                     file_path=str(profile_path),
                     from_system=from_system,
                     settings={k: v for k, v in data.items() if k not in ['name', 'inherits', 'from', 'type']},
-                    profile_type=data.get('type', 'filament')
+                    profile_type=profile_type
                 )
         except Exception as e:
             print(f"Error loading profile {profile_path}: {e}")
@@ -155,23 +166,27 @@ class ProfileAnalyzer:
 
         return descendants
 
-    def get_branches_with_user_profiles(self) -> List[Profile]:
-        """Get all profiles that are part of branches containing user-defined profiles"""
-        user_profiles = [p for p in self.profiles.values() if not p.from_system]
+    def get_branches_with_user_profiles(self, profile_types: List[str] = ["filament"]) -> List[Profile]:
+        """Get all profiles that are part of branches containing user-defined profiles, filtered by profile types"""
+        user_profiles = [p for p in self.profiles.values() if not p.from_system and p.profile_type in profile_types]
         all_relevant_profiles = set()
 
         # For each user profile, add the entire inheritance chain to the relevant set
         for user_profile in user_profiles:
             chain = self.get_profile_inheritance_chain(user_profile.name)
             for profile in chain:
-                all_relevant_profiles.add(profile.name)
+                # Only add profiles that are in the requested types
+                if profile.profile_type in profile_types:
+                    all_relevant_profiles.add(profile.name)
 
         # Also add all descendants of user profiles and their ancestors
         for user_profile in user_profiles:
             # Add all descendants of this user profile
             descendants = self.get_all_descendants(user_profile.name)
             for descendant in descendants:
-                all_relevant_profiles.add(descendant.name)
+                # Only add profiles that are in the requested types
+                if descendant.profile_type in profile_types:
+                    all_relevant_profiles.add(descendant.name)
 
         # Return the profiles
         return [self.profiles[name] for name in all_relevant_profiles if name in self.profiles]
