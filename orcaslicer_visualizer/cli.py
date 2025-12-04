@@ -12,7 +12,8 @@ from .visualizer import GraphVisualizer
 @click.option('--output', '-o', default='orcaslicer_graph.dot', help='Output file for the graphviz dot file')
 @click.option('--input-dir', '-i', default='OrcaSlicer', help='Input directory containing OrcaSlicer profiles')
 @click.option('--compare', '-c', default=None, help='Compare settings for a specific profile and its inheritance chain')
-def main(target: Optional[str], output: str, input_dir: str, compare: Optional[str]):
+@click.option('--user', '-u', is_flag=True, help='Only show branches that include user-defined profiles')
+def main(target: Optional[str], output: str, input_dir: str, compare: Optional[str], user: bool):
     """OrcaSlicer Filament Profile Visualizer"""
 
     # Check if input directory exists
@@ -32,7 +33,7 @@ def main(target: Optional[str], output: str, input_dir: str, compare: Optional[s
     # Otherwise, generate the graph visualization
     try:
         visualizer = GraphVisualizer(analyzer)
-        dot = visualizer.generate_graph(target)
+        dot = visualizer.generate_graph(target, user_only=user)
         
         # Write to output file
         output_path = Path(output)

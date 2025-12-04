@@ -32,10 +32,22 @@ Visualize only the inheritance chain for a specific profile:
 uv run orcaslicer-visualizer --target "Spool Fuel Generic PETG"
 ```
 
+Only show branches that include user-defined profiles:
+
+```bash
+uv run orcaslicer-visualizer --user
+```
+
 Specify a custom output file:
 
 ```bash
 uv run orcaslicer-visualizer --output my_graph.dot --target "Bambu PLA Basic @base"
+```
+
+Combine options to show user branches for a specific target profile:
+
+```bash
+uv run orcaslicer-visualizer --target "Spool Fuel Generic PETG" --user
 ```
 
 ### Parameter Comparison
@@ -60,6 +72,7 @@ Options:
   -o, --output TEXT     Output file for the graphviz dot file
   -i, --input-dir TEXT  Input directory containing OrcaSlicer profiles (default: OrcaSlicer)
   -c, --compare TEXT    Compare settings for a specific profile and its inheritance chain
+  -u, --user            Only show branches that include user-defined profiles
   --help                Show this message and exit.
 ```
 

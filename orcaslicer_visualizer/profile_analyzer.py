@@ -108,21 +108,42 @@ class ProfileAnalyzer:
         descendants = []
         to_check = [parent_name]
         visited = set()
-        
+
         while to_check:
             current_name = to_check.pop(0)
             if current_name in visited:
                 continue
-                
+
             visited.add(current_name)
             children = self.get_all_children(current_name)
-            
+
             for child in children:
                 if child not in descendants:
                     descendants.append(child)
                     to_check.append(child.name)
-        
+
         return descendants
+
+    def get_branches_with_user_profiles(self) -> List[Profile]:
+        """Get all profiles that are part of branches containing user-defined profiles"""
+        user_profiles = [p for p in self.profiles.values() if not p.from_system]
+        all_relevant_profiles = set()
+
+        # For each user profile, add the entire inheritance chain to the relevant set
+        for user_profile in user_profiles:
+            chain = self.get_profile_inheritance_chain(user_profile.name)
+            for profile in chain:
+                all_relevant_profiles.add(profile.name)
+
+        # Also add all descendants of user profiles and their ancestors
+        for user_profile in user_profiles:
+            # Add all descendants of this user profile
+            descendants = self.get_all_descendants(user_profile.name)
+            for descendant in descendants:
+                all_relevant_profiles.add(descendant.name)
+
+        # Return the profiles
+        return [self.profiles[name] for name in all_relevant_profiles if name in self.profiles]
     
     def get_profile_settings_comparison(self, profile_name: str) -> Dict[str, List]:
         """Get a comparison of settings across the inheritance chain"""
