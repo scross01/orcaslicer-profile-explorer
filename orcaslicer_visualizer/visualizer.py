@@ -1,4 +1,5 @@
 import graphviz
+import os
 from typing import List, Optional
 from .profile_analyzer import Profile, ProfileAnalyzer
 
@@ -7,8 +8,10 @@ class GraphVisualizer:
     def __init__(self, analyzer: ProfileAnalyzer):
         self.analyzer = analyzer
     
-    def generate_graph(self, target_profile: Optional[str] = None, user_only: bool = False, profile_types: List[str] = ["filament"], group: bool = False) -> graphviz.Digraph:
+    def generate_graph(self, target_profile: Optional[str] = None, user_only: bool = False, profile_types: List[str] = ["filament"], group: bool = False, input_dir: str = "OrcaSlicer") -> graphviz.Digraph:
         """Generate a Graphviz digraph for the profile inheritance"""
+        # Store input_dir for use in _add_profile_node
+        self.input_dir = input_dir
         if group:
             dot = graphviz.Digraph(comment='OrcaSlicer Profile Inheritance')
             dot.attr(rankdir='LR', size='12,10')
@@ -104,7 +107,7 @@ class GraphVisualizer:
                     if child_path in directory_profiles:
                         for profile in directory_profiles[child_path]:
                             if profile.profile_type in profile_types:
-                                self._add_profile_node(subgraph, profile)
+                                self._add_profile_node(subgraph, profile, group=True)
 
                     # Recursively process subdirectories within this subgraph
                     if sub_hierarchy:  # Only recurse if there are subdirectories
@@ -126,7 +129,7 @@ class GraphVisualizer:
             # Add profiles without grouping
             for profile in profiles_to_process:
                 if profile.profile_type in profile_types:
-                    self._add_profile_node(dot, profile)
+                    self._add_profile_node(dot, profile, group=group)
 
             # Add inheritance relationships for all processed profiles
             for profile in profiles_to_process:
@@ -137,44 +140,66 @@ class GraphVisualizer:
 
         return dot
     
-    def _add_profile_node(self, dot: graphviz.Digraph, profile: Profile):
+    def _add_profile_node(self, dot: graphviz.Digraph, profile: Profile, group: bool = False):
         """Add a profile node to the graph"""
         # Create a label with profile name and key information
-        label_parts = [profile.name]
+        label_parts = [profile.name]  # Profile name without bolding
 
         # Add vendor if available
         vendor = profile.settings.get('filament_vendor')
         if vendor and isinstance(vendor, list) and len(vendor) > 0:
             label_parts.append(f"Vendor: {vendor[0]}")
 
-        # Extract directory name to show profile type
-        import os
-        profile_dir = os.path.basename(os.path.dirname(profile.file_path))
+        # Get just the filename without the parent directory
         filename = os.path.basename(profile.file_path)
-        label_parts.append(f"{profile_dir}/{filename}")
+        label_parts.append(f"File: {filename}")
+
+        # Add the path within the input directory when not using group option
+        if not group:
+            # Extract the path relative to the input directory
+            # Find the input directory in the path and get everything after it
+            path_parts = profile.file_path.split('/')
+            input_dir_name = os.path.basename(self.input_dir.rstrip('/'))  # Handle input_dir with or without trailing slash
+            input_dir_idx = -1
+            for i, part in enumerate(path_parts):
+                if part == input_dir_name:
+                    input_dir_idx = i
+                    break
+
+            if input_dir_idx >= 0:
+                # Get everything after the input directory name
+                relative_path_parts = path_parts[input_dir_idx + 1:]  # Skip input directory itself
+                if len(relative_path_parts) > 1:  # If we have subdirectories
+                    # Join all parts except the filename (last element)
+                    relative_dir = '/'.join(relative_path_parts[:-1])
+                    label_parts.append(f"Path: {relative_dir}")
 
         label = r'\n'.join(label_parts)
 
-        # Set color based on profile type and source
+        # Determine if profile is from system or user directory based on file path
+        is_user_profile = "user/" in profile.file_path
+
+        # Set colors based on OrcaSlicer application theme with same border color for type regardless of system/user
         if profile.profile_type == "filament":
-            fillcolor = 'lightblue' if profile.from_system else 'lightyellow'
+            color = '#2E86AB'  # Darker blue for filament type
+            # Use transparency: 25% for system (lighter), 50% for user (darker)
+            fillcolor = '#2E86AB33' if not is_user_profile else '#2E86AB80'  # 33 = ~20%, 80 = ~50%
         elif profile.profile_type == "machine":
-            fillcolor = 'lightgreen' if profile.from_system else 'lightcoral'
+            color = '#27AE60'  # Darker green for machine type
+            fillcolor = '#27AE6033' if not is_user_profile else '#27AE6080'  # 33 = ~20%, 80 = ~50%
         elif profile.profile_type == "process":
-            fillcolor = 'lightcyan' if profile.from_system else 'plum'
+            color = '#8E44AD'  # Dark purple for process type
+            fillcolor = '#8E44AD33' if not is_user_profile else '#8E44AD80'  # 33 = ~20%, 80 = ~50%
         else:
             # Default color for unknown types
-            fillcolor = 'lightgray' if profile.from_system else 'lavender'
+            color = '#7F8C8D'  # Gray for other types
+            fillcolor = '#7F8C8D33' if not is_user_profile else '#7F8C8D80'  # 33 = ~20%, 80 = ~50%
 
-        # Set shape based on profile type
-        if profile.profile_type == "machine":
-            shape = 'ellipse'
-        elif profile.profile_type == "process":
-            shape = 'diamond'
-        else:  # filament or default
-            shape = 'box'
+        # Apply thicker border for user profiles (under user directory)
+        penwidth = '3' if is_user_profile else '1'
 
-        dot.node(profile.name, label=label, fillcolor=fillcolor, shape=shape)
+        # Use rounded boxes for all profile types (instead of shape-based shapes)
+        dot.node(profile.name, label=label, fillcolor=fillcolor, color=color, penwidth=penwidth, shape='box', style='rounded,filled')
     
     def _add_inheritance_edge(self, dot: graphviz.Digraph, parent_name: str, child_name: str):
         """Add an inheritance edge from parent to child"""
