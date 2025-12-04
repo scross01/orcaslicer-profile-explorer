@@ -19,6 +19,8 @@ class ProfileAnalyzer:
     def __init__(self, base_path: str):
         self.base_path = Path(base_path)
         self.profiles: Dict[str, Profile] = {}
+        # Keep track of duplicate profile names to handle conflicts
+        self.profile_name_to_file_paths: Dict[str, List[str]] = {}
         self.load_all_profiles()
     
     def load_all_profiles(self):
@@ -124,8 +126,24 @@ class ProfileAnalyzer:
                     # Explicitly set to filament if in filament directory
                     profile_type = 'filament'
 
-                self.profiles[name] = Profile(
-                    name=name,
+                # Track file paths for each profile name to handle duplicates
+                if name not in self.profile_name_to_file_paths:
+                    self.profile_name_to_file_paths[name] = []
+                self.profile_name_to_file_paths[name].append(str(profile_path))
+
+                # If there are multiple profiles with the same name, create unique identifiers
+                # but also maintain the original name relationship
+                original_name = name
+                unique_name = original_name
+                if len(self.profile_name_to_file_paths[original_name]) > 1:
+                    # When multiple profiles have the same name, append path info to make unique
+                    profile_dir = str(Path(profile_path).parent)
+                    dir_parts = profile_dir.split(os.path.sep)
+                    unique_dir_part = "/".join(dir_parts[-2:]) if len(dir_parts) >= 2 else dir_parts[-1]
+                    unique_name = f"{original_name} [{unique_dir_part}]"
+
+                self.profiles[unique_name] = Profile(
+                    name=original_name,  # Keep original name for reference
                     inherits=inherits,
                     file_path=str(profile_path),
                     from_system=from_system,
@@ -135,9 +153,40 @@ class ProfileAnalyzer:
         except Exception as e:
             print(f"Error loading profile {profile_path}: {e}")
     
-    def get_profile(self, name: str) -> Optional[Profile]:
-        """Get a profile by name"""
-        return self.profiles.get(name)
+    def get_profile(self, name: str, requesting_file_path: str = None) -> Optional[Profile]:
+        """Get a profile by name, with optional requesting file path for disambiguation"""
+        # First, try to get by exact key name (may be unique or with path suffix)
+        profile = self.profiles.get(name)
+        if profile:
+            return profile
+
+        # If the name is not found directly, try to resolve by looking at profiles with the same original name
+        # This handles the case where multiple profiles have the same original name but different unique names
+        profile_candidates = []
+        for profile_key, profile_obj in self.profiles.items():
+            if profile_obj.name == name:
+                profile_candidates.append(profile_obj)
+
+        if not profile_candidates:
+            return None
+        elif len(profile_candidates) == 1:
+            return profile_candidates[0]
+        else:
+            # Multiple profiles with the same original name - disambiguate by directory proximity
+            if requesting_file_path:
+                requesting_path_obj = Path(requesting_file_path)
+                requesting_parent_dir = str(requesting_path_obj.parent)
+
+                # Find the profile in the same directory as the requesting profile
+                for candidate in profile_candidates:
+                    candidate_parent_dir = str(Path(candidate.file_path).parent)
+                    if candidate_parent_dir == requesting_parent_dir:
+                        return candidate
+
+            # If no specific file context provided, or no directory match found, return the first one as fallback
+            return profile_candidates[0]
+
+        return None
     
     def get_all_profiles(self) -> List[Profile]:
         """Get all loaded profiles"""
@@ -147,17 +196,19 @@ class ProfileAnalyzer:
         """Get the inheritance chain for a given profile name"""
         chain = []
         visited = set()
-        
+
         current_name = profile_name
+        requesting_file_path = None  # Will be set after we get the first profile
         while current_name and current_name not in visited:
-            profile = self.get_profile(current_name)
+            profile = self.get_profile(current_name, requesting_file_path)
             if not profile:
                 break
-            
+
             chain.append(profile)
             visited.add(current_name)
+            requesting_file_path = profile.file_path  # Use this profile's path for subsequent lookups
             current_name = profile.inherits
-        
+
         return chain
     
     def get_all_children(self, parent_name: str) -> List[Profile]:
@@ -200,6 +251,7 @@ class ProfileAnalyzer:
             for profile in chain:
                 # Only add profiles that are in the requested types
                 if profile.profile_type in profile_types:
+                    # Use the profile's unique key to store it
                     all_relevant_profiles.add(profile.name)
 
         # Also add all descendants of user profiles and their ancestors
@@ -211,8 +263,14 @@ class ProfileAnalyzer:
                 if descendant.profile_type in profile_types:
                     all_relevant_profiles.add(descendant.name)
 
-        # Return the profiles
-        return [self.profiles[name] for name in all_relevant_profiles if name in self.profiles]
+        # Return the profile objects (need to get them by name from the profiles dictionary)
+        result = []
+        for name in all_relevant_profiles:
+            # Look for profiles with this original name
+            found_profiles = [p for p in self.profiles.values() if p.name == name]
+            result.extend(found_profiles)
+
+        return result
     
     def get_profile_settings_comparison(self, profile_name: str) -> Dict[str, List]:
         """Get a comparison of settings across the inheritance chain"""
@@ -389,13 +447,15 @@ class ProfileAnalyzer:
         visited = set()
 
         current_name = profile_name
+        requesting_file_path = None  # Will be set after we get the first profile
         while current_name and current_name not in visited:
-            profile = self.get_profile(current_name)
+            profile = self.get_profile(current_name, requesting_file_path)
             if not profile:
                 break
 
             chain.append(profile)
             visited.add(current_name)
+            requesting_file_path = profile.file_path  # Use this profile's path for subsequent lookups
             current_name = profile.inherits
 
         return chain

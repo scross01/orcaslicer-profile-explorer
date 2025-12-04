@@ -155,9 +155,9 @@ class GraphVisualizer:
             # Add inheritance relationships between profiles (across subgraphs)
             for profile in profiles_to_process:
                 if profile.profile_type in profile_types and profile.inherits:
-                    parent_profile = self.analyzer.get_profile(profile.inherits)
+                    parent_profile = self.analyzer.get_profile(profile.inherits, profile.file_path)
                     if parent_profile and parent_profile.profile_type in profile_types and parent_profile in profiles_to_process:
-                        self._add_inheritance_edge(dot, profile.inherits, profile.name)
+                        self._add_inheritance_edge(dot, parent_profile, profile)
         else:
             # Add profiles without grouping
             for profile in profiles_to_process:
@@ -167,9 +167,9 @@ class GraphVisualizer:
             # Add inheritance relationships for all processed profiles
             for profile in profiles_to_process:
                 if profile.profile_type in profile_types and profile.inherits:
-                    parent_profile = self.analyzer.get_profile(profile.inherits)
+                    parent_profile = self.analyzer.get_profile(profile.inherits, profile.file_path)
                     if parent_profile and parent_profile.profile_type in profile_types and parent_profile in profiles_to_process:
-                        self._add_inheritance_edge(dot, profile.inherits, profile.name)
+                        self._add_inheritance_edge(dot, parent_profile, profile)
 
         return dot
     
@@ -235,23 +235,32 @@ class GraphVisualizer:
         # Apply thicker border for user profiles (under user directory)
         penwidth = '3' if is_user_profile else '1'
 
+        # Create unique node ID to handle duplicate profile names in different directories
+        node_id = f"{profile.name}__{Path(profile.file_path).parent.name}__{hash(profile.file_path) % 10000}"
+
         # Use rounded boxes for all profile types (instead of shape-based shapes)
-        dot.node(profile.name, label=label, fillcolor=fillcolor, color=color, penwidth=penwidth, shape='box', style='rounded,filled')
+        dot.node(node_id, label=label, fillcolor=fillcolor, color=color, penwidth=penwidth, shape='box', style='rounded,filled')
     
-    def _add_inheritance_edge(self, dot: graphviz.Digraph, parent_name: str, child_name: str):
-        """Add an inheritance edge from parent to child"""
-        dot.edge(parent_name, child_name, arrowhead='vee')
+    def _get_node_id(self, profile: Profile) -> str:
+        """Generate a unique node ID for a profile"""
+        return f"{profile.name}__{Path(profile.file_path).parent.name}__{hash(profile.file_path) % 10000}"
+
+    def _add_inheritance_edge(self, dot: graphviz.Digraph, parent_profile: Profile, child_profile: Profile):
+        """Add an inheritance edge from parent to child using unique node IDs"""
+        parent_node_id = self._get_node_id(parent_profile)
+        child_node_id = self._get_node_id(child_profile)
+        dot.edge(parent_node_id, child_node_id, arrowhead='vee')
     
     def _add_inheritance_chain(self, dot: graphviz.Digraph, profile: Profile, visited: set):
         """Add all parent profiles in the inheritance chain"""
         current = profile
         while current and current.inherits and current.inherits not in visited:
-            parent = self.analyzer.get_profile(current.inherits)
+            parent = self.analyzer.get_profile(current.inherits, current.file_path)
             if not parent:
                 break
-            
+
             self._add_profile_node(dot, parent)
-            self._add_inheritance_edge(dot, parent.name, current.name)
+            self._add_inheritance_edge(dot, parent, current)
             visited.add(parent.name)
             current = parent
     
@@ -266,4 +275,6 @@ class GraphVisualizer:
                 
                 # Add inheritance edge
                 if descendant.inherits:
-                    self._add_inheritance_edge(dot, descendant.inherits, descendant.name)
+                    parent_profile = self.analyzer.get_profile(descendant.inherits, descendant.file_path)
+                    if parent_profile:
+                        self._add_inheritance_edge(dot, parent_profile, descendant)
