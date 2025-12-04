@@ -16,7 +16,8 @@ from .visualizer import GraphVisualizer
 @click.option('--filament', '-f', 'profile_types', flag_value='filament', help='Show only filament profiles')
 @click.option('--machine', '-m', 'profile_types', flag_value='machine', help='Show only machine profiles')
 @click.option('--process', '-p', 'profile_types', flag_value='process', help='Show only process profiles')
-def main(target: Optional[str], output: str, input_dir: str, compare: Optional[str], user: bool, profile_types: str):
+@click.option('--group', is_flag=True, help='Group nodes by directory hierarchy')
+def main(target: Optional[str], output: str, input_dir: str, compare: Optional[str], user: bool, profile_types: str, group: bool):
     """OrcaSlicer Profile Visualizer - supports filament, machine, and process profiles"""
 
     # Check if input directory exists
@@ -45,7 +46,7 @@ def main(target: Optional[str], output: str, input_dir: str, compare: Optional[s
     # Otherwise, generate the graph visualization
     try:
         visualizer = GraphVisualizer(analyzer)
-        dot = visualizer.generate_graph(target, user_only=user, profile_types=profile_type_list)
+        dot = visualizer.generate_graph(target, user_only=user, profile_types=profile_type_list, group=group)
         
         # Write to output file
         output_path = Path(output)

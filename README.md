@@ -73,6 +73,18 @@ Combine profile type selection with other options:
 ```bash
 uv run orcaslicer-visualizer --machine --user --output machine_user_only.dot
 ```
+
+Group nodes by directory hierarchy:
+
+```bash
+uv run orcaslicer-visualizer --group --output grouped_graph.dot
+```
+
+Combine grouping with other options:
+
+```bash
+uv run orcaslicer-visualizer --filament --group --output grouped_filament_graph.dot
+```
 ```
 
 ### Parameter Comparison
@@ -102,6 +114,7 @@ Options:
   -f, --filament        Show only filament profiles
   -m, --machine         Show only machine profiles
   -p, --process         Show only process profiles
+  --group               Group nodes by directory hierarchy
   --help                Show this message and exit.
 ```
 

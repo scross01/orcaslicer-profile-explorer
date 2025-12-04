@@ -7,28 +7,23 @@ class GraphVisualizer:
     def __init__(self, analyzer: ProfileAnalyzer):
         self.analyzer = analyzer
     
-    def generate_graph(self, target_profile: Optional[str] = None, user_only: bool = False, profile_types: List[str] = ["filament"]) -> graphviz.Digraph:
+    def generate_graph(self, target_profile: Optional[str] = None, user_only: bool = False, profile_types: List[str] = ["filament"], group: bool = False) -> graphviz.Digraph:
         """Generate a Graphviz digraph for the profile inheritance"""
-        dot = graphviz.Digraph(comment='OrcaSlicer Profile Inheritance')
-        dot.attr(rankdir='LR', size='12,10')
-        dot.attr('node', shape='box', style='rounded,filled', fontname='Arial')
+        if group:
+            dot = graphviz.Digraph(comment='OrcaSlicer Profile Inheritance')
+            dot.attr(rankdir='LR', size='12,10')
+            dot.attr('node', shape='box', style='rounded,filled', fontname='Arial')
+        else:
+            dot = graphviz.Digraph(comment='OrcaSlicer Profile Inheritance')
+            dot.attr(rankdir='LR', size='12,10')
+            dot.attr('node', shape='box', style='rounded,filled', fontname='Arial')
 
         visited_profiles: set = set()
 
         if user_only:
             # Only show branches that include user-defined profiles
             relevant_profiles = self.analyzer.get_branches_with_user_profiles(profile_types)
-            for profile in relevant_profiles:
-                if profile.profile_type in profile_types:
-                    self._add_profile_node(dot, profile)
-
-            # Add inheritance relationships between relevant profiles
-            for profile in relevant_profiles:
-                if profile.profile_type in profile_types and profile.inherits:
-                    parent_profile = self.analyzer.get_profile(profile.inherits)
-                    if parent_profile and parent_profile.profile_type in profile_types and parent_profile in relevant_profiles:
-                        self._add_inheritance_edge(dot, profile.inherits, profile.name)
-
+            profiles_to_process = [p for p in relevant_profiles if p.profile_type in profile_types]
         elif target_profile:
             # If a target profile is specified, only visualize the inheritance chain
             # and descendants for that profile
@@ -42,27 +37,102 @@ class GraphVisualizer:
                 # For now, just add it if it's in the chain even if it's not the right type
                 pass
 
-            # Add the target profile
-            self._add_profile_node(dot, target_profile_obj)
-            visited_profiles.add(target_profile)
+            # Get the full chain that includes the target profile
+            target_chain = self.analyzer.get_profile_inheritance_chain(target_profile)
+            target_descendants = self.analyzer.get_all_descendants(target_profile)
+            profiles_to_process = [p for p in (target_chain + target_descendants) if p.profile_type in profile_types]
 
-            # Add inheritance chain (parents)
-            self._add_inheritance_chain(dot, target_profile_obj, visited_profiles)
-
-            # Add descendants
-            self._add_descendants(dot, target_profile, visited_profiles)
+            # Add the target profile even if it's not the right type to maintain inheritance
+            if target_profile_obj.profile_type not in profile_types:
+                profiles_to_process.append(target_profile_obj)
         else:
             # If no target is specified, visualize profiles of the specified types
             all_profiles = self.analyzer.get_all_profiles()
-            for profile in all_profiles:
+            profiles_to_process = [p for p in all_profiles if p.profile_type in profile_types]
+
+        # Create profiles mapping by directory - normalize paths to be relative from the base
+        directory_profiles = {}
+        for profile in profiles_to_process:
+            # Extract directory path from file path
+            full_path_parts = profile.file_path.split('/')
+            # Assuming the base path is up to the first major directory after OrcaSlicer
+            # Find where OrcaSlicer is in the path and take everything after
+            base_index = -1
+            for idx, part in enumerate(full_path_parts):
+                if part == 'OrcaSlicer':
+                    base_index = idx
+                    break
+
+            # Use the path starting after OrcaSlicer
+            if base_index != -1:
+                directory_parts = full_path_parts[base_index:]
+                directory_path = '/' + '/'.join(directory_parts[:-1])  # Exclude the filename
+            else:
+                # Fallback: just remove the file name
+                directory_path = '/'.join(profile.file_path.split('/')[:-1])
+
+            if directory_path not in directory_profiles:
+                directory_profiles[directory_path] = []
+            directory_profiles[directory_path].append(profile)
+
+        if group:
+            # Build the directory hierarchy tree
+            root = {}
+            for directory_path in directory_profiles.keys():
+                path_parts = [part for part in directory_path.split('/') if part]
+                current = root
+                for part in path_parts:
+                    if part not in current:
+                        current[part] = {}
+                    current = current[part]
+
+            # Recursive function to create nested subgraphs
+            def create_nested_subgraphs_recursive(hierarchy_node, path_list, parent_graph):
+                current_path = '/' + '/'.join(path_list) if path_list else '/'
+
+                # Process each directory at this level
+                for dir_name, sub_hierarchy in hierarchy_node.items():
+                    child_path = current_path + '/' + dir_name if path_list else '/' + dir_name if dir_name else '/'
+
+                    # Create subgraph for this directory
+                    subgraph_name = child_path.replace('/', '_').replace('-', '_').replace(' ', '_').replace('(', '').replace(')', '')
+                    subgraph = graphviz.Digraph(f'cluster_{subgraph_name}')
+                    subgraph.attr(label=dir_name)
+                    subgraph.attr(style='bold', color='lightgrey', penwidth='2')
+
+                    # Add profiles that belong to this directory to the subgraph
+                    if child_path in directory_profiles:
+                        for profile in directory_profiles[child_path]:
+                            if profile.profile_type in profile_types:
+                                self._add_profile_node(subgraph, profile)
+
+                    # Recursively process subdirectories within this subgraph
+                    if sub_hierarchy:  # Only recurse if there are subdirectories
+                        create_nested_subgraphs_recursive(sub_hierarchy, path_list + [dir_name], subgraph)
+
+                    # Add this subgraph to the parent graph
+                    parent_graph.subgraph(subgraph)
+
+            # Create nested subgraphs structure
+            create_nested_subgraphs_recursive(root, [], dot)
+
+            # Add inheritance relationships between profiles (across subgraphs)
+            for profile in profiles_to_process:
+                if profile.profile_type in profile_types and profile.inherits:
+                    parent_profile = self.analyzer.get_profile(profile.inherits)
+                    if parent_profile and parent_profile.profile_type in profile_types and parent_profile in profiles_to_process:
+                        self._add_inheritance_edge(dot, profile.inherits, profile.name)
+        else:
+            # Add profiles without grouping
+            for profile in profiles_to_process:
                 if profile.profile_type in profile_types:
                     self._add_profile_node(dot, profile)
 
-            # Add all inheritance relationships for the specified types
-            for profile in all_profiles:
+            # Add inheritance relationships for all processed profiles
+            for profile in profiles_to_process:
                 if profile.profile_type in profile_types and profile.inherits:
                     parent_profile = self.analyzer.get_profile(profile.inherits)
-                    if parent_profile and parent_profile.profile_type in profile_types:
+                    if parent_profile and parent_profile.profile_type in profile_types and parent_profile in profiles_to_process:
                         self._add_inheritance_edge(dot, profile.inherits, profile.name)
 
         return dot
