@@ -1,0 +1,20 @@
+[project]
+name = "orcaslicer-filament-profile-visualizer"
+version = "0.1.0"
+description = "A tool to visualize OrcaSlicer filament profile inheritance"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "graphviz>=0.20.1",
+    "click>=8.1.7"
+]
+
+[project.scripts]
+orcaslicer-visualizer = "orcaslicer_visualizer.cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
