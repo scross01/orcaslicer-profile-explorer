@@ -79,15 +79,45 @@ class GraphVisualizer:
             directory_profiles[directory_path].append(profile)
 
         if group:
-            # Build the directory hierarchy tree
+            # Build the directory hierarchy tree based on the existing directory paths
+            # but starting the groupings at the 'system' and 'user' levels
             root = {}
             for directory_path in directory_profiles.keys():
                 path_parts = [part for part in directory_path.split('/') if part]
+
+                # Find index of 'system' or 'user' to start grouping from there
+                start_idx = 0
+                for i, part in enumerate(path_parts):
+                    if part in ['system', 'user']:
+                        start_idx = i
+                        break
+
+                # Create path from system/user onwards
+                relevant_parts = path_parts[start_idx:] if start_idx > 0 else path_parts
+
+                # Add the sub-hierarchy starting from the relevant level
                 current = root
-                for part in path_parts:
+                for part in relevant_parts:
                     if part not in current:
                         current[part] = {}
                     current = current[part]
+
+            # Create a mapping from simplified paths (starting from system/user) to the full directory paths
+            path_mapping = {}
+            for full_path in directory_profiles.keys():
+                path_parts = [part for part in full_path.split('/') if part]
+
+                # Find index of 'system' or 'user' to start grouping from there
+                start_idx = 0
+                for i, part in enumerate(path_parts):
+                    if part in ['system', 'user']:
+                        start_idx = i
+                        break
+
+                # Create path from system/user onwards
+                relevant_parts = path_parts[start_idx:] if start_idx > 0 else path_parts
+                simplified_path = '/' + '/'.join(relevant_parts) if relevant_parts else '/'
+                path_mapping[simplified_path] = full_path
 
             # Recursive function to create nested subgraphs
             def create_nested_subgraphs_recursive(hierarchy_node, path_list, parent_graph):
@@ -95,17 +125,18 @@ class GraphVisualizer:
 
                 # Process each directory at this level
                 for dir_name, sub_hierarchy in hierarchy_node.items():
-                    child_path = current_path + '/' + dir_name if path_list else '/' + dir_name if dir_name else '/'
+                    child_tree_path = current_path + '/' + dir_name if path_list else '/' + dir_name if dir_name else '/'
 
                     # Create subgraph for this directory
-                    subgraph_name = child_path.replace('/', '_').replace('-', '_').replace(' ', '_').replace('(', '').replace(')', '')
+                    subgraph_name = child_tree_path.replace('/', '_').replace('-', '_').replace(' ', '_').replace('(', '').replace(')', '')
                     subgraph = graphviz.Digraph(f'cluster_{subgraph_name}')
                     subgraph.attr(label=dir_name)
                     subgraph.attr(style='bold', color='lightgrey', penwidth='2')
 
-                    # Add profiles that belong to this directory to the subgraph
-                    if child_path in directory_profiles:
-                        for profile in directory_profiles[child_path]:
+                    # Check if this simplified path corresponds to an actual directory path
+                    if child_tree_path in path_mapping and path_mapping[child_tree_path] in directory_profiles:
+                        actual_path = path_mapping[child_tree_path]
+                        for profile in directory_profiles[actual_path]:
                             if profile.profile_type in profile_types:
                                 self._add_profile_node(subgraph, profile, group=True)
 
@@ -116,7 +147,7 @@ class GraphVisualizer:
                     # Add this subgraph to the parent graph
                     parent_graph.subgraph(subgraph)
 
-            # Create nested subgraphs structure
+            # Create nested subgraphs structure starting from system/user level
             create_nested_subgraphs_recursive(root, [], dot)
 
             # Add inheritance relationships between profiles (across subgraphs)
