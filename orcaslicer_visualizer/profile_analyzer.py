@@ -24,20 +24,51 @@ class ProfileAnalyzer:
     def load_all_profiles(self):
         """Load all profiles from system and user directories"""
         profile_paths = []
-        
+
         # Add system profiles
         system_path = self.base_path / "system"
         if system_path.exists():
             profile_paths.extend(self._find_profile_files(system_path))
-        
+
         # Add user profiles
         user_path = self.base_path / "user"
         if user_path.exists():
             profile_paths.extend(self._find_profile_files(user_path))
-        
+
         # Load all profile files
         for profile_path in profile_paths:
             self._load_profile(profile_path)
+
+    def load_profiles_by_type(self, profile_types: List[str]):
+        """Load only profiles of specific types"""
+        profile_paths = []
+
+        # Add system profiles
+        system_path = self.base_path / "system"
+        if system_path.exists():
+            profile_paths.extend(self._find_profile_files(system_path))
+
+        # Add user profiles
+        user_path = self.base_path / "user"
+        if user_path.exists():
+            profile_paths.extend(self._find_profile_files(user_path))
+
+        # Load only profiles matching the specified types
+        for profile_path in profile_paths:
+            try:
+                with open(profile_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+
+                profile_type = data.get('type', 'filament')
+                if profile_type in profile_types:
+                    self._load_profile(profile_path)
+            except Exception:
+                # If there's an error reading, just skip this file
+                continue
+
+    def get_profiles_by_type(self, profile_type: str) -> List[Profile]:
+        """Get all profiles of a specific type"""
+        return [p for p in self.profiles.values() if p.profile_type == profile_type]
     
     def _find_profile_files(self, directory: Path) -> List[Path]:
         """Find all JSON profile files in the directory tree"""
@@ -197,7 +228,22 @@ class ProfileAnalyzer:
         for i, setting_name in enumerate(comparison['setting_names']):
             row = f"| {setting_name} |"
             for profile_name_col in profile_names:
-                value = comparison[profile_name_col][i] if i < len(comparison[profile_name_col]) else "N/A"
+                value = comparison[profile_name_col][i] if i < len(comparison[profile_name_col]) else "-"
+
+                # For gcode settings, just indicate if value is set or not
+                if 'gcode' in setting_name.lower():
+                    if value != "-":
+                        # Check if the actual value is empty or just whitespace
+                        if isinstance(value, str) and not value.strip():
+                            value = "-"
+                        else:
+                            value = "SET"
+                    # If it was already "-", leave it as "-"
+                else:
+                    # Replace N/A with - for non-gcode settings
+                    if value == "N/A":
+                        value = "-"
+
                 row += f" {value} |"
             rows.append(row)
 

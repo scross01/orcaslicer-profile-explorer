@@ -13,27 +13,39 @@ from .visualizer import GraphVisualizer
 @click.option('--input-dir', '-i', default='OrcaSlicer', help='Input directory containing OrcaSlicer profiles')
 @click.option('--compare', '-c', default=None, help='Compare settings for a specific profile and its inheritance chain')
 @click.option('--user', '-u', is_flag=True, help='Only show branches that include user-defined profiles')
-def main(target: Optional[str], output: str, input_dir: str, compare: Optional[str], user: bool):
-    """OrcaSlicer Filament Profile Visualizer"""
+@click.option('--filament', '-f', 'profile_types', flag_value='filament', help='Show only filament profiles')
+@click.option('--machine', '-m', 'profile_types', flag_value='machine', help='Show only machine profiles')
+@click.option('--process', '-p', 'profile_types', flag_value='process', help='Show only process profiles')
+def main(target: Optional[str], output: str, input_dir: str, compare: Optional[str], user: bool, profile_types: str):
+    """OrcaSlicer Profile Visualizer - supports filament, machine, and process profiles"""
 
     # Check if input directory exists
     if not os.path.exists(input_dir):
         click.echo(f"Error: Input directory {input_dir} does not exist")
         return
 
+    # Determine which profile types to load
+    profile_type_list = [profile_types] if profile_types else ["filament"]
+
     # Create analyzer
     analyzer = ProfileAnalyzer(input_dir)
+    # Clear the default loading and load only requested profile types
+    analyzer.profiles = {}
+    analyzer.load_profiles_by_type(profile_type_list)
 
     # If compare option is used, show parameter comparison table
     if compare:
-        table = analyzer.format_settings_comparison_table(compare)
-        click.echo(table)
+        if profile_type_list != ["filament"]:
+            click.echo("Warning: --compare only works with filament profiles")
+        else:
+            table = analyzer.format_settings_comparison_table(compare)
+            click.echo(table)
         return
 
     # Otherwise, generate the graph visualization
     try:
         visualizer = GraphVisualizer(analyzer)
-        dot = visualizer.generate_graph(target, user_only=user)
+        dot = visualizer.generate_graph(target, user_only=user, profile_types=profile_type_list)
         
         # Write to output file
         output_path = Path(output)

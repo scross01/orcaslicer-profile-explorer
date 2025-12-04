@@ -20,10 +20,28 @@ uv sync
 
 ### Graph Visualization
 
-Generate a complete graph of all filament profiles:
+Generate a complete graph of all profiles:
 
 ```bash
 uv run orcaslicer-visualizer
+```
+
+Generate a graph showing only filament profiles:
+
+```bash
+uv run orcaslicer-visualizer --filament
+```
+
+Generate a graph showing only machine profiles:
+
+```bash
+uv run orcaslicer-visualizer --machine
+```
+
+Generate a graph showing only process profiles:
+
+```bash
+uv run orcaslicer-visualizer --process
 ```
 
 Visualize only the inheritance chain for a specific profile:
@@ -50,6 +68,13 @@ Combine options to show user branches for a specific target profile:
 uv run orcaslicer-visualizer --target "Spool Fuel Generic PETG" --user
 ```
 
+Combine profile type selection with other options:
+
+```bash
+uv run orcaslicer-visualizer --machine --user --output machine_user_only.dot
+```
+```
+
 ### Parameter Comparison
 
 Compare settings across the inheritance chain:
@@ -65,7 +90,8 @@ This outputs a table showing how settings are defined across the inheritance cha
 ```bash
 Usage: orcaslicer-visualizer [OPTIONS]
 
-  OrcaSlicer Filament Profile Visualizer
+  OrcaSlicer Profile Visualizer - supports filament, machine, and process
+  profiles
 
 Options:
   -t, --target TEXT     Target profile to visualize (shows parents and children)
@@ -73,6 +99,9 @@ Options:
   -i, --input-dir TEXT  Input directory containing OrcaSlicer profiles (default: OrcaSlicer)
   -c, --compare TEXT    Compare settings for a specific profile and its inheritance chain
   -u, --user            Only show branches that include user-defined profiles
+  -f, --filament        Show only filament profiles
+  -m, --machine         Show only machine profiles
+  -p, --process         Show only process profiles
   --help                Show this message and exit.
 ```
 

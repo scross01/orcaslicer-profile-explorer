@@ -7,9 +7,9 @@ class GraphVisualizer:
     def __init__(self, analyzer: ProfileAnalyzer):
         self.analyzer = analyzer
     
-    def generate_graph(self, target_profile: Optional[str] = None, user_only: bool = False) -> graphviz.Digraph:
+    def generate_graph(self, target_profile: Optional[str] = None, user_only: bool = False, profile_types: List[str] = ["filament"]) -> graphviz.Digraph:
         """Generate a Graphviz digraph for the profile inheritance"""
-        dot = graphviz.Digraph(comment='OrcaSlicer Filament Profile Inheritance')
+        dot = graphviz.Digraph(comment='OrcaSlicer Profile Inheritance')
         dot.attr(rankdir='LR', size='12,10')
         dot.attr('node', shape='box', style='rounded,filled', fontname='Arial')
 
@@ -19,14 +19,14 @@ class GraphVisualizer:
             # Only show branches that include user-defined profiles
             relevant_profiles = self.analyzer.get_branches_with_user_profiles()
             for profile in relevant_profiles:
-                if profile.profile_type == "filament":
+                if profile.profile_type in profile_types:
                     self._add_profile_node(dot, profile)
 
             # Add inheritance relationships between relevant profiles
             for profile in relevant_profiles:
-                if profile.profile_type == "filament" and profile.inherits:
+                if profile.profile_type in profile_types and profile.inherits:
                     parent_profile = self.analyzer.get_profile(profile.inherits)
-                    if parent_profile and parent_profile.profile_type == "filament" and parent_profile in relevant_profiles:
+                    if parent_profile and parent_profile.profile_type in profile_types and parent_profile in relevant_profiles:
                         self._add_inheritance_edge(dot, profile.inherits, profile.name)
 
         elif target_profile:
@@ -35,6 +35,12 @@ class GraphVisualizer:
             target_profile_obj = self.analyzer.get_profile(target_profile)
             if not target_profile_obj:
                 raise ValueError(f"Profile '{target_profile}' not found")
+
+            # Only process if the target profile is of a requested type
+            if target_profile_obj.profile_type not in profile_types:
+                # Find if target profile has any ancestors/descendants of the requested type
+                # For now, just add it if it's in the chain even if it's not the right type
+                pass
 
             # Add the target profile
             self._add_profile_node(dot, target_profile_obj)
@@ -46,17 +52,17 @@ class GraphVisualizer:
             # Add descendants
             self._add_descendants(dot, target_profile, visited_profiles)
         else:
-            # If no target is specified, visualize all filament profiles
+            # If no target is specified, visualize profiles of the specified types
             all_profiles = self.analyzer.get_all_profiles()
             for profile in all_profiles:
-                if profile.profile_type == "filament":
+                if profile.profile_type in profile_types:
                     self._add_profile_node(dot, profile)
 
-            # Add all inheritance relationships
+            # Add all inheritance relationships for the specified types
             for profile in all_profiles:
-                if profile.profile_type == "filament" and profile.inherits:
+                if profile.profile_type in profile_types and profile.inherits:
                     parent_profile = self.analyzer.get_profile(profile.inherits)
-                    if parent_profile and parent_profile.profile_type == "filament":
+                    if parent_profile and parent_profile.profile_type in profile_types:
                         self._add_inheritance_edge(dot, profile.inherits, profile.name)
 
         return dot
