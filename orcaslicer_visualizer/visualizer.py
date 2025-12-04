@@ -8,7 +8,7 @@ class GraphVisualizer:
     def __init__(self, analyzer: ProfileAnalyzer):
         self.analyzer = analyzer
     
-    def generate_graph(self, target_profile: Optional[str] = None, user_only: bool = False, profile_types: List[str] = ["filament"], group: bool = False, input_dir: str = "OrcaSlicer") -> graphviz.Digraph:
+    def generate_graph(self, target_profile: Optional[str] = None, user_only: bool = False, profile_types: List[str] = ["filament"], group: bool = False, input_dir: str = "OrcaSlicer", simple: bool = False) -> graphviz.Digraph:
         """Generate a Graphviz digraph for the profile inheritance"""
         # Store input_dir for use in _add_profile_node
         self.input_dir = input_dir
@@ -138,7 +138,7 @@ class GraphVisualizer:
                         actual_path = path_mapping[child_tree_path]
                         for profile in directory_profiles[actual_path]:
                             if profile.profile_type in profile_types:
-                                self._add_profile_node(subgraph, profile, group=True)
+                                self._add_profile_node(subgraph, profile, group=True, simple=simple)
 
                     # Recursively process subdirectories within this subgraph
                     if sub_hierarchy:  # Only recurse if there are subdirectories
@@ -160,7 +160,7 @@ class GraphVisualizer:
             # Add profiles without grouping
             for profile in profiles_to_process:
                 if profile.profile_type in profile_types:
-                    self._add_profile_node(dot, profile, group=group)
+                    self._add_profile_node(dot, profile, group=group, simple=simple)
 
             # Add inheritance relationships for all processed profiles
             for profile in profiles_to_process:
@@ -171,39 +171,41 @@ class GraphVisualizer:
 
         return dot
     
-    def _add_profile_node(self, dot: graphviz.Digraph, profile: Profile, group: bool = False):
+    def _add_profile_node(self, dot: graphviz.Digraph, profile: Profile, group: bool = False, simple: bool = False):
         """Add a profile node to the graph"""
         # Create a label with profile name and key information
         label_parts = [profile.name]  # Profile name without bolding
 
-        # Add vendor if available
-        vendor = profile.settings.get('filament_vendor')
-        if vendor and isinstance(vendor, list) and len(vendor) > 0:
-            label_parts.append(f"Vendor: {vendor[0]}")
+        # Add additional information only if not in simple mode
+        if not simple:
+            # Add vendor if available
+            vendor = profile.settings.get('filament_vendor')
+            if vendor and isinstance(vendor, list) and len(vendor) > 0:
+                label_parts.append(f"Vendor: {vendor[0]}")
 
-        # Get just the filename without the parent directory
-        filename = os.path.basename(profile.file_path)
-        label_parts.append(f"File: {filename}")
+            # Get just the filename without the parent directory
+            filename = os.path.basename(profile.file_path)
+            label_parts.append(f"File: {filename}")
 
-        # Add the path within the input directory when not using group option
-        if not group:
-            # Extract the path relative to the input directory
-            # Find the input directory in the path and get everything after it
-            path_parts = profile.file_path.split('/')
-            input_dir_name = os.path.basename(self.input_dir.rstrip('/'))  # Handle input_dir with or without trailing slash
-            input_dir_idx = -1
-            for i, part in enumerate(path_parts):
-                if part == input_dir_name:
-                    input_dir_idx = i
-                    break
+            # Add the path within the input directory when not using group option
+            if not group:
+                # Extract the path relative to the input directory
+                # Find the input directory in the path and get everything after it
+                path_parts = profile.file_path.split('/')
+                input_dir_name = os.path.basename(self.input_dir.rstrip('/'))  # Handle input_dir with or without trailing slash
+                input_dir_idx = -1
+                for i, part in enumerate(path_parts):
+                    if part == input_dir_name:
+                        input_dir_idx = i
+                        break
 
-            if input_dir_idx >= 0:
-                # Get everything after the input directory name
-                relative_path_parts = path_parts[input_dir_idx + 1:]  # Skip input directory itself
-                if len(relative_path_parts) > 1:  # If we have subdirectories
-                    # Join all parts except the filename (last element)
-                    relative_dir = '/'.join(relative_path_parts[:-1])
-                    label_parts.append(f"Path: {relative_dir}")
+                if input_dir_idx >= 0:
+                    # Get everything after the input directory name
+                    relative_path_parts = path_parts[input_dir_idx + 1:]  # Skip input directory itself
+                    if len(relative_path_parts) > 1:  # If we have subdirectories
+                        # Join all parts except the filename (last element)
+                        relative_dir = '/'.join(relative_path_parts[:-1])
+                        label_parts.append(f"Path: {relative_dir}")
 
         label = r'\n'.join(label_parts)
 

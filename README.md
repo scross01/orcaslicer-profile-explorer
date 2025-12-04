@@ -91,6 +91,24 @@ Combine grouping with other options:
 ```bash
 uv run orcaslicer-visualizer --filament --group --output grouped_filament_graph.dot
 ```
+
+Show profiles with only names (simple view):
+
+```bash
+uv run orcaslicer-visualizer --simple
+```
+
+Combine simple view with profile type selection:
+
+```bash
+uv run orcaslicer-visualizer --machine --simple
+```
+
+Combine simple view with grouping:
+
+```bash
+uv run orcaslicer-visualizer --process --simple --group
+```
 ```
 
 ### Parameter Comparison
@@ -138,6 +156,7 @@ Options:
   -m, --machine         Show only machine profiles
   -p, --process         Show only process profiles
   --group               Group nodes by directory hierarchy
+  --simple              Show only profile names without additional attributes
   --help                Show this message and exit.
 ```
 

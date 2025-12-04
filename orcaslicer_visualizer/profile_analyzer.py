@@ -60,6 +60,17 @@ class ProfileAnalyzer:
                     data = json.load(f)
 
                 profile_type = data.get('type', 'filament')
+
+                # If type is default 'filament', try to infer from directory
+                if profile_type == 'filament':
+                    path_str = str(profile_path)
+                    if '/process/' in path_str:
+                        profile_type = 'process'
+                    elif '/machine/' in path_str:
+                        profile_type = 'machine'
+                    elif '/filament/' in path_str:
+                        profile_type = 'filament'
+
                 if profile_type in profile_types:
                     self._load_profile(profile_path)
             except Exception:
@@ -93,13 +104,15 @@ class ProfileAnalyzer:
                 # Determine profile type from JSON data or directory structure
                 profile_type = data.get('type', 'filament')
 
-                # If type is not explicitly specified in the JSON, infer from directory
-                if profile_type == 'filament':
-                    path_str = str(profile_path)
-                    if '/process/' in path_str:
-                        profile_type = 'process'
-                    elif '/machine/' in path_str:
-                        profile_type = 'machine'
+                # If type is default or if we should infer from directory, check the directory
+                path_str = str(profile_path)
+                if '/process/' in path_str:
+                    profile_type = 'process'
+                elif '/machine/' in path_str:
+                    profile_type = 'machine'
+                elif '/filament/' in path_str:
+                    # Explicitly set to filament if in filament directory
+                    profile_type = 'filament'
 
                 self.profiles[name] = Profile(
                     name=name,
