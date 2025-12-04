@@ -11,13 +11,14 @@ from .visualizer import GraphVisualizer
 @click.option('--target', '-t', default=None, help='Target profile to visualize (shows parents and children)')
 @click.option('--output', '-o', default='orcaslicer_graph.dot', help='Output file for the graphviz dot file')
 @click.option('--input-dir', '-i', default='OrcaSlicer', help='Input directory containing OrcaSlicer profiles')
-@click.option('--compare', '-c', default=None, help='Compare settings for a specific profile and its inheritance chain')
+@click.option('--show-profile', '-s', default=None, help='Show settings for a specific profile and its inheritance chain')
+@click.option('--show-effective-profile', default=None, help='Show effective settings for a specific profile with all values inherited from parents')
 @click.option('--user', '-u', is_flag=True, help='Only show branches that include user-defined profiles')
 @click.option('--filament', '-f', 'profile_types', flag_value='filament', help='Show only filament profiles')
 @click.option('--machine', '-m', 'profile_types', flag_value='machine', help='Show only machine profiles')
 @click.option('--process', '-p', 'profile_types', flag_value='process', help='Show only process profiles')
 @click.option('--group', is_flag=True, help='Group nodes by directory hierarchy')
-def main(target: Optional[str], output: str, input_dir: str, compare: Optional[str], user: bool, profile_types: str, group: bool):
+def main(target: Optional[str], output: str, input_dir: str, show_profile: Optional[str], show_effective_profile: Optional[str], user: bool, profile_types: str, group: bool):
     """OrcaSlicer Profile Visualizer - supports filament, machine, and process profiles"""
 
     # Check if input directory exists
@@ -34,13 +35,16 @@ def main(target: Optional[str], output: str, input_dir: str, compare: Optional[s
     analyzer.profiles = {}
     analyzer.load_profiles_by_type(profile_type_list)
 
-    # If compare option is used, show parameter comparison table
-    if compare:
-        if profile_type_list != ["filament"]:
-            click.echo("Warning: --compare only works with filament profiles")
-        else:
-            table = analyzer.format_settings_comparison_table(compare)
-            click.echo(table)
+    # If show-effective-profile option is used, show effective settings table
+    if show_effective_profile:
+        table = analyzer.get_effective_profile_settings(show_effective_profile)
+        click.echo(table)
+        return
+
+    # If show-profile option is used, show parameter comparison table
+    if show_profile:
+        table = analyzer.format_settings_comparison_table(show_profile)
+        click.echo(table)
         return
 
     # Otherwise, generate the graph visualization

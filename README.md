@@ -26,6 +26,12 @@ Generate a complete graph of all profiles:
 uv run orcaslicer-visualizer
 ```
 
+Show settings comparison for a profile and its inheritance chain:
+
+```bash
+uv run orcaslicer-visualizer --show-profile "Spool Fuel Generic PETG"
+```
+
 Generate a graph showing only filament profiles:
 
 ```bash
@@ -92,10 +98,18 @@ uv run orcaslicer-visualizer --filament --group --output grouped_filament_graph.
 Compare settings across the inheritance chain:
 
 ```bash
-uv run orcaslicer-visualizer --compare "Spool Fuel Generic PETG"
+uv run orcaslicer-visualizer --show-profile "Spool Fuel Generic PETG"
 ```
 
 This outputs a table showing how settings are defined across the inheritance chain, from base to specific profile.
+
+Show effective settings for a profile (using inherited values where not set):
+
+```bash
+uv run orcaslicer-visualizer --show-effective-profile "Spool Fuel Generic PETG"
+```
+
+This outputs a table showing the effective settings for the profile, taking values from parent profiles where not explicitly set.
 
 ### Complete Command Options
 
@@ -109,8 +123,9 @@ Options:
   -t, --target TEXT     Target profile to visualize (shows parents and children)
   -o, --output TEXT     Output file for the graphviz dot file
   -i, --input-dir TEXT  Input directory containing OrcaSlicer profiles (default: OrcaSlicer)
-  -c, --compare TEXT    Compare settings for a specific profile and its inheritance chain
-  -u, --user            Only show branches that include user-defined profiles
+  -s, --show-profile TEXT          Show settings for a specific profile and its inheritance chain
+  --show-effective-profile TEXT    Show effective settings for a specific profile with all values inherited from parents
+  -u, --user                       Only show branches that include user-defined profiles
   -f, --filament        Show only filament profiles
   -m, --machine         Show only machine profiles
   -p, --process         Show only process profiles

@@ -263,3 +263,104 @@ class ProfileAnalyzer:
             rows.append(row)
 
         return "\n".join(rows)
+
+    def get_profile_inheritance_chain_with_types(self, profile_name: str) -> List[Profile]:
+        """
+        Get the inheritance chain for a given profile name, regardless of profile type
+        """
+        chain = []
+        visited = set()
+
+        current_name = profile_name
+        while current_name and current_name not in visited:
+            profile = self.get_profile(current_name)
+            if not profile:
+                break
+
+            chain.append(profile)
+            visited.add(current_name)
+            current_name = profile.inherits
+
+        return chain
+
+    def get_effective_profile_settings(self, profile_name: str) -> str:
+        """
+        Get effective settings for a profile by traversing the inheritance chain
+        and taking values from parents if not set in the current profile.
+        """
+        chain = self.get_profile_inheritance_chain_with_types(profile_name)
+
+        if not chain:
+            return f"Profile '{profile_name}' not found"
+
+        # The chain is from the target profile up to the root (base), so we traverse from base to specific profile
+        # We'll go in order from base to target, with later profiles overriding settings from earlier ones
+        effective_values = {}
+
+        # Collect all unique settings names across the entire chain
+        all_setting_names = set()
+        for profile in chain:
+            all_setting_names.update(profile.settings.keys())
+
+        # Initialize with "-" for all settings
+        for setting_name in all_setting_names:
+            effective_values[setting_name] = "-"
+
+        # For each setting, find the effective value by going from base to specific profile
+        # and taking each meaningful value (child overrides parent)
+        for setting_name in all_setting_names:
+            # Walk through the chain from base to target (reversed order) to apply overrides in the right order
+            # The chain is originally [specific, parent, grandparent, ... base], so we need to reverse it
+            for profile in reversed(chain):  # Start with base profile and move to target
+                if setting_name in profile.settings:
+                    value = profile.settings[setting_name]
+                    # Update the value if this profile provides a meaningful value
+                    is_meaningful = False
+                    if value is not None and value != "":
+                        if isinstance(value, list):
+                            if len(value) > 0 and not all((v == "" or v == "-" or v is None) for v in value):
+                                is_meaningful = True
+                        elif isinstance(value, str):
+                            if value.strip() and value != "-":
+                                is_meaningful = True
+                        else:
+                            is_meaningful = True
+
+                        if is_meaningful:
+                            effective_values[setting_name] = value
+                            # Don't break here - continue to allow more specific profiles to override
+
+        # Format as a markdown table
+        header = f"| Setting Name | {chain[0].name} |"
+        separator = "| --- | --- |"
+
+        rows = [header, separator]
+
+        # Sort the setting names for consistent output
+        sorted_settings = sorted(effective_values.keys())
+
+        for setting_name in sorted_settings:
+            value = effective_values[setting_name]
+
+            # Format the value appropriately
+            if isinstance(value, list):
+                if len(value) == 1:
+                    value = value[0]
+                else:
+                    value = ", ".join(str(v) for v in value)
+
+            # For gcode settings, just indicate if value is set or not
+            if 'gcode' in setting_name.lower():
+                if value and str(value).strip():
+                    value = "SET"
+                else:
+                    value = "-"
+            else:
+                # Convert empty values to "-", leaving "N/A" as is
+                if not value or (isinstance(value, str) and not value.strip()):
+                    value = "-"
+
+            row = f"| {setting_name} | {value} |"
+            rows.append(row)
+
+        return "\n".join(rows)
