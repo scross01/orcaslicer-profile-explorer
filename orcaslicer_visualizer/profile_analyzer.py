@@ -264,6 +264,100 @@ class ProfileAnalyzer:
 
         return "\n".join(rows)
 
+    def get_effective_profile_settings_multiple(self, profile_names: tuple) -> str:
+        """
+        Get effective settings for multiple profiles of the same type, showing them in a comparison table.
+        """
+        if not profile_names:
+            return "No profile names provided"
+
+        # Get all requested profiles
+        profiles = []
+        for profile_name in profile_names:
+            profile = self.get_profile(profile_name)
+            if not profile:
+                return f"Profile '{profile_name}' not found"
+            profiles.append(profile)
+
+        # Check that all profiles are of the same type
+        profile_types = {p.profile_type for p in profiles}
+        if len(profile_types) > 1:
+            return f"All profiles must be of the same type. Found types: {', '.join(profile_types)}"
+
+        # Get all unique setting names across the inheritance chains of all requested profiles
+        all_setting_names = set()
+        all_chains = []
+        for profile in profiles:
+            chain = self.get_profile_inheritance_chain_with_types(profile.name)
+            all_chains.append(chain)
+            for chain_profile in chain:
+                all_setting_names.update(chain_profile.settings.keys())
+
+        # For each setting and each profile, find the effective value
+        effective_values = {}
+        for setting_name in all_setting_names:
+            effective_values[setting_name] = {}
+            for profile, chain in zip(profiles, all_chains):
+                # Find the effective value for this setting in this profile's chain
+                # Process from base to target (first to last in the chain) allowing child profiles to override parent values
+                value_found = "-"
+                for chain_profile in chain:  # Start with base profile and move to target
+                    if setting_name in chain_profile.settings:
+                        value = chain_profile.settings[setting_name]
+                        # Update the value if this profile provides a meaningful value
+                        is_meaningful = False
+                        if value is not None and value != "":
+                            if isinstance(value, list):
+                                if len(value) > 0 and not all((v == "" or v == "-" or v is None) for v in value):
+                                    is_meaningful = True
+                            elif isinstance(value, str):
+                                if value.strip() and value != "-":
+                                    is_meaningful = True
+                            else:
+                                is_meaningful = True
+
+                        if is_meaningful:
+                            value_found = value
+                            # Don't break - continue to allow more specific profiles to override
+                effective_values[setting_name][profile.name] = value_found
+
+        # Format as a markdown table with a column for each profile
+        header = "| Setting Name | " + " | ".join(p.name for p in profiles) + " |"
+        separator = "|" + " --- |" * (len(profiles) + 1)
+
+        rows = [header, separator]
+
+        # Sort the setting names for consistent output
+        sorted_settings = sorted(effective_values.keys())
+
+        for setting_name in sorted_settings:
+            row = f"| {setting_name} |"
+            for profile in profiles:
+                value = effective_values[setting_name][profile.name]
+
+                # Format the value appropriately
+                if isinstance(value, list):
+                    if len(value) == 1:
+                        value = value[0]
+                    else:
+                        value = ", ".join(str(v) for v in value)
+
+                # For gcode settings, just indicate if value is set or not
+                if 'gcode' in setting_name.lower():
+                    if value and str(value).strip() and value != "-":
+                        value = "SET"
+                    else:
+                        value = "-"
+                else:
+                    # Convert empty values to "-", leaving "N/A" as is
+                    if not value or (isinstance(value, str) and not value.strip()) or value == "-":
+                        value = "-"
+
+                row += f" {value} |"
+            rows.append(row)
+
+        return "\n".join(rows)
+
     def get_profile_inheritance_chain_with_types(self, profile_name: str) -> List[Profile]:
         """
         Get the inheritance chain for a given profile name, regardless of profile type

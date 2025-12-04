@@ -111,6 +111,14 @@ uv run orcaslicer-visualizer --show-effective-profile "Spool Fuel Generic PETG"
 
 This outputs a table showing the effective settings for the profile, taking values from parent profiles where not explicitly set.
 
+Compare effective settings for multiple profiles of the same type:
+
+```bash
+uv run orcaslicer-visualizer --show-effective-profile "HiPi.io Generic PLA" --show-effective-profile "HiPi.io Transparent PLA"
+```
+
+This outputs a table comparing the effective settings of multiple profiles of the same type (filament, machine, or process).
+
 ### Complete Command Options
 
 ```bash
