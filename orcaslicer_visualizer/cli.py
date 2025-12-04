@@ -1,5 +1,7 @@
 import click
 import os
+import sys
+import platform
 from pathlib import Path
 from typing import Optional
 
@@ -7,10 +9,21 @@ from .profile_analyzer import ProfileAnalyzer
 from .visualizer import GraphVisualizer
 
 
+def get_default_input_dir() -> str:
+    """Get the OS-specific default OrcaSlicer directory"""
+    system = platform.system()
+    if system == "Windows":
+        return Path.home() / "AppData" / "Roaming" / "OrcaSlicer"
+    elif system == "Darwin":  # macOS
+        return Path.home() / "Library" / "Application Support" / "OrcaSlicer"
+    else:  # Linux and other Unix-like systems
+        return Path.home() / ".config" / "OrcaSlicer"
+
+
 @click.command()
 @click.option('--target', '-t', default=None, help='Target profile to visualize (shows parents and children)')
 @click.option('--output', '-o', default='orcaslicer_graph.dot', help='Output file for the graphviz dot file')
-@click.option('--input-dir', '-i', default='OrcaSlicer', help='Input directory containing OrcaSlicer profiles')
+@click.option('--input-dir', '-i', default='', help='Input directory containing OrcaSlicer profiles')
 @click.option('--show-profile', '-s', default=None, help='Show settings for a specific profile and its inheritance chain')
 @click.option('--show-effective-profile', default=None, multiple=True, help='Show effective settings for specific profiles with all values inherited from parents. Can be used multiple times to compare multiple profiles of the same type.')
 @click.option('--user', '-u', is_flag=True, help='Only show branches that include user-defined profiles')
@@ -21,6 +34,10 @@ from .visualizer import GraphVisualizer
 @click.option('--simple', is_flag=True, help='Show only profile names without additional attributes')
 def main(target: Optional[str], output: str, input_dir: str, show_profile: Optional[str], show_effective_profile: tuple, user: bool, profile_types: str, group: bool, simple: bool):
     """OrcaSlicer Profile Visualizer - supports filament, machine, and process profiles"""
+
+    # Use OS-specific default if input_dir is not provided
+    if not input_dir:
+        input_dir = str(get_default_input_dir())
 
     # Check if input directory exists
     if not os.path.exists(input_dir):

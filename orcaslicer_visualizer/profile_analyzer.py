@@ -64,11 +64,16 @@ class ProfileAnalyzer:
                 # If type is default 'filament', try to infer from directory
                 if profile_type == 'filament':
                     path_str = str(profile_path)
-                    if '/process/' in path_str:
+                    # Use OS-appropriate path separators for checking
+                    process_path = os.path.sep + "process" + os.path.sep
+                    machine_path = os.path.sep + "machine" + os.path.sep
+                    filament_path = os.path.sep + "filament" + os.path.sep
+
+                    if process_path in path_str:
                         profile_type = 'process'
-                    elif '/machine/' in path_str:
+                    elif machine_path in path_str:
                         profile_type = 'machine'
-                    elif '/filament/' in path_str:
+                    elif filament_path in path_str:
                         profile_type = 'filament'
 
                 if profile_type in profile_types:
@@ -106,11 +111,16 @@ class ProfileAnalyzer:
 
                 # If type is default or if we should infer from directory, check the directory
                 path_str = str(profile_path)
-                if '/process/' in path_str:
+                # Use OS-appropriate path separators for checking
+                process_path = os.path.sep + "process" + os.path.sep
+                machine_path = os.path.sep + "machine" + os.path.sep
+                filament_path = os.path.sep + "filament" + os.path.sep
+
+                if process_path in path_str:
                     profile_type = 'process'
-                elif '/machine/' in path_str:
+                elif machine_path in path_str:
                     profile_type = 'machine'
-                elif '/filament/' in path_str:
+                elif filament_path in path_str:
                     # Explicitly set to filament if in filament directory
                     profile_type = 'filament'
 

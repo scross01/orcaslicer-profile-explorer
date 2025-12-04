@@ -1,5 +1,6 @@
 import graphviz
 import os
+from pathlib import Path
 from typing import List, Optional
 from .profile_analyzer import Profile, ProfileAnalyzer
 
@@ -56,8 +57,9 @@ class GraphVisualizer:
         # Create profiles mapping by directory - normalize paths to be relative from the base
         directory_profiles = {}
         for profile in profiles_to_process:
-            # Extract directory path from file path
-            full_path_parts = profile.file_path.split('/')
+            # Extract directory path from file path using Path for OS independence
+            profile_path = Path(profile.file_path)
+            full_path_parts = profile_path.parts
             # Assuming the base path is up to the first major directory after OrcaSlicer
             # Find where OrcaSlicer is in the path and take everything after
             base_index = -1
@@ -71,8 +73,8 @@ class GraphVisualizer:
                 directory_parts = full_path_parts[base_index:]
                 directory_path = '/' + '/'.join(directory_parts[:-1])  # Exclude the filename
             else:
-                # Fallback: just remove the file name
-                directory_path = '/'.join(profile.file_path.split('/')[:-1])
+                # Fallback: just remove the file name using parent
+                directory_path = '/'.join(profile_path.parent.parts)
 
             if directory_path not in directory_profiles:
                 directory_profiles[directory_path] = []
@@ -184,15 +186,17 @@ class GraphVisualizer:
                 label_parts.append(f"Vendor: {vendor[0]}")
 
             # Get just the filename without the parent directory
-            filename = os.path.basename(profile.file_path)
+            profile_path = Path(profile.file_path)
+            filename = profile_path.name
             label_parts.append(f"File: {filename}")
 
             # Add the path within the input directory when not using group option
             if not group:
                 # Extract the path relative to the input directory
                 # Find the input directory in the path and get everything after it
-                path_parts = profile.file_path.split('/')
-                input_dir_name = os.path.basename(self.input_dir.rstrip('/'))  # Handle input_dir with or without trailing slash
+                path_parts = profile_path.parts
+                input_dir_path = Path(self.input_dir)
+                input_dir_name = input_dir_path.name
                 input_dir_idx = -1
                 for i, part in enumerate(path_parts):
                     if part == input_dir_name:
