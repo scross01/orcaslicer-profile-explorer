@@ -1,7 +1,7 @@
 [project]
-name = "orcaslicer-filament-profile-visualizer"
+name = "orcaslicer-profile-explorer"
 version = "0.1.0"
-description = "A tool to visualize OrcaSlicer filament profile inheritance"
+description = "A tool to explore OrcaSlicer profile inheritance"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [project.scripts]
-orcaslicer-visualizer = "orcaslicer_visualizer.cli:main"
+orcaslicer-profile-explorer = "orcaslice_profile_explorer.cli:main"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

@@ -33,7 +33,7 @@ def get_default_input_dir() -> str:
 @click.option('--group', is_flag=True, help='Group nodes by directory hierarchy')
 @click.option('--simple', is_flag=True, help='Show only profile names without additional attributes')
 def main(target: Optional[str], output: str, input_dir: str, show_profile: Optional[str], show_effective_profile: tuple, user: bool, profile_types: str, group: bool, simple: bool):
-    """OrcaSlicer Profile Visualizer - supports filament, machine, and process profiles"""
+    """OrcaSlicer Profile Explorer - supports filament, machine, and process profiles"""
 
     # Use OS-specific default if input_dir is not provided
     if not input_dir:
