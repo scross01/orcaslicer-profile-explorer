@@ -155,37 +155,109 @@ class ProfileAnalyzer:
     
     def get_profile(self, name: str, requesting_file_path: str = None) -> Optional[Profile]:
         """Get a profile by name, with optional requesting file path for disambiguation"""
-        # First, try to get by exact key name (may be unique or with path suffix)
-        profile = self.profiles.get(name)
-        if profile:
-            return profile
 
-        # If the name is not found directly, try to resolve by looking at profiles with the same original name
-        # This handles the case where multiple profiles have the same original name but different unique names
+        # First, try to get by exact key name (may be unique or with path suffix)
+        exact_match = self.profiles.get(name)
+
+        # Find all profiles with the same original name for potential disambiguation
         profile_candidates = []
         for profile_key, profile_obj in self.profiles.items():
-            if profile_obj.name == name:
+            if profile_obj.name == name:  # This looks for original name in the profile's name attribute
                 profile_candidates.append(profile_obj)
 
+        # If no profiles with the requested name exist, return None
         if not profile_candidates:
             return None
-        elif len(profile_candidates) == 1:
-            return profile_candidates[0]
-        else:
-            # Multiple profiles with the same original name - disambiguate by directory proximity
-            if requesting_file_path:
-                requesting_path_obj = Path(requesting_file_path)
-                requesting_parent_dir = str(requesting_path_obj.parent)
 
-                # Find the profile in the same directory as the requesting profile
-                for candidate in profile_candidates:
-                    candidate_parent_dir = str(Path(candidate.file_path).parent)
-                    if candidate_parent_dir == requesting_parent_dir:
-                        return candidate
-
-            # If no specific file context provided, or no directory match found, return the first one as fallback
+        # If only one profile exists with this name, return it regardless of exact key match
+        if len(profile_candidates) == 1:
             return profile_candidates[0]
 
+        # If multiple profiles exist with the same original name, apply heuristics
+        # This will be the case when we need to disambiguate based on directory proximity
+        if requesting_file_path:
+            requesting_path_obj = Path(requesting_file_path)
+            requesting_parts = requesting_path_obj.parts
+
+            # Find the closest matching profile based on directory proximity
+            closest_candidate = self._find_closest_profile(profile_candidates, requesting_path_obj)
+
+            if closest_candidate:
+                return closest_candidate
+
+        # If no specific file context provided, or no close match found,
+        # prefer profiles in system/OrcaFilamentLibrary before others
+        orca_filament_library_candidates = [
+            candidate for candidate in profile_candidates
+            if 'system/OrcaFilamentLibrary' in candidate.file_path or
+               '/system/OrcaFilamentLibrary' in candidate.file_path or
+               candidate.file_path.startswith('system/OrcaFilamentLibrary')
+        ]
+
+        if orca_filament_library_candidates:
+            return orca_filament_library_candidates[0]
+
+        # If no OrcaFilamentLibrary profiles, return the first one as a fallback
+        return profile_candidates[0]
+
+    def _find_closest_profile(self, candidates: List[Profile], requesting_path: Path) -> Optional[Profile]:
+        """Find the closest profile based on directory hierarchy proximity
+
+        Implements the heuristic:
+        1. First prioritize profiles in the same directory as requesting file
+        2. Then prioritize profiles with the most common path components
+        3. If no path matches, prefer profiles in system/OrcaFilamentLibrary
+        4. As a last resort, return the first available profile
+        """
+        requesting_path_obj = Path(requesting_path)
+        requesting_parent_dir = requesting_path_obj.parent
+        requesting_parts = requesting_path_obj.parts
+
+        # First, check for profiles in the exact same parent directory
+        for candidate in candidates:
+            candidate_path = Path(candidate.file_path)
+            candidate_parent_dir = candidate_path.parent
+            if candidate_parent_dir == requesting_parent_dir:
+                return candidate
+
+        # Then look for profiles in the same vendor/manufacturer directory or with the most common path
+        closest_matches = []
+
+        for candidate in candidates:
+            candidate_path = Path(candidate.file_path)
+            candidate_parts = candidate_path.parts
+
+            # Find the common path length between requesting file and candidate file
+            common_length = 0
+            min_len = min(len(requesting_parts), len(candidate_parts))
+
+            for i in range(min_len):
+                if requesting_parts[i] == candidate_parts[i]:
+                    common_length += 1
+                else:
+                    break
+
+            if common_length > 0:  # At least some common path
+                closest_matches.append((candidate, common_length))
+
+        if closest_matches:
+            # Return the candidate with the longest common path
+            closest_match = max(closest_matches, key=lambda x: x[1])
+            return closest_match[0]
+
+        # If no candidates share any path components with the requesting file,
+        # look for candidates in system/OrcaFilamentLibrary as a fallback
+        orca_filament_library_candidates = [
+            candidate for candidate in candidates
+            if 'system/OrcaFilamentLibrary' in candidate.file_path or
+               '/system/OrcaFilamentLibrary' in candidate.file_path or
+               candidate.file_path.startswith('system/OrcaFilamentLibrary')
+        ]
+
+        if orca_filament_library_candidates:
+            return orca_filament_library_candidates[0]
+
+        # No close matches found, return None to let the caller handle fallback
         return None
     
     def get_all_profiles(self) -> List[Profile]:
