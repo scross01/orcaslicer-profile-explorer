@@ -402,8 +402,8 @@ class ProfileAnalyzer:
             for profile_name_col in profile_names:
                 value = comparison[profile_name_col][i] if i < len(comparison[profile_name_col]) else "-"
 
-                # For gcode settings, just indicate if value is set or not
-                if 'gcode' in setting_name.lower():
+                # For gcode and filament_notes settings, just indicate if value is set or not
+                if 'gcode' in setting_name.lower() or setting_name.lower() == 'filament_notes':
                     # Only mark as SET if the profile actually defines this setting and has a non-empty value
                     # Find the profile in the chain to check if setting is actually defined there
                     prof = next((p for p in chain if p.name == profile_name_col), None)
@@ -420,7 +420,7 @@ class ProfileAnalyzer:
                     else:
                         value = "-"  # Setting not defined in this profile
                 else:
-                    # Replace N/A with - for non-gcode settings
+                    # Replace N/A with - for non-gcode and non-filament_notes settings
                     if value == "N/A":
                         value = "-"
 
@@ -498,22 +498,32 @@ class ProfileAnalyzer:
         for setting_name in sorted_settings:
             row = f"| {setting_name} |"
             for profile in profiles:
-                value = effective_values[setting_name][profile.name]
-
-                # Format the value appropriately
-                if isinstance(value, list):
-                    if len(value) == 1:
-                        value = value[0]
+                # For gcode and filament_notes, just show SET if the profile defines this setting, otherwise -
+                if 'gcode' in setting_name.lower() or setting_name.lower() == 'filament_notes':
+                    # Check if this specific profile defines the setting
+                    if setting_name in profile.settings:
+                        actual_value = profile.settings.get(setting_name)
+                        if actual_value and isinstance(actual_value, str) and actual_value.strip():
+                            value = "SET"
+                        elif isinstance(actual_value, list) and any(str(v).strip() for v in actual_value if isinstance(v, str)):
+                            value = "SET"
+                        elif actual_value:  # Non-empty value that's not a string or list
+                            value = "SET"
+                        else:
+                            value = "-"  # Empty value
                     else:
-                        value = ", ".join(str(v) for v in value)
-
-                # For gcode settings, just indicate if value is set or not
-                if 'gcode' in setting_name.lower():
-                    if value and str(value).strip() and value != "-":
-                        value = "SET"
-                    else:
-                        value = "-"
+                        value = "-"  # Setting not defined in this profile
                 else:
+                    # For other settings, use the effective value (original logic)
+                    value = effective_values[setting_name][profile.name]
+
+                    # Format the value appropriately
+                    if isinstance(value, list):
+                        if len(value) == 1:
+                            value = value[0]
+                        else:
+                            value = ", ".join(str(v) for v in value)
+
                     # Convert empty values to "-", leaving "N/A" as is
                     if not value or (isinstance(value, str) and not value.strip()) or value == "-":
                         value = "-"
@@ -554,69 +564,72 @@ class ProfileAnalyzer:
         if not chain:
             return f"Profile '{profile_name}' not found"
 
-        # The chain is from the target profile up to the root (base), so we traverse from base to specific profile
-        # We'll go in order from base to target, with later profiles overriding settings from earlier ones
-        effective_values = {}
+        # Get the target profile (the one we're showing settings for)
+        target_profile = chain[0] if chain else None
+        if not target_profile:
+            return f"Profile '{profile_name}' not found"
 
         # Collect all unique settings names across the entire chain
         all_setting_names = set()
         for profile in chain:
             all_setting_names.update(profile.settings.keys())
 
-        # Initialize with "-" for all settings
-        for setting_name in all_setting_names:
-            effective_values[setting_name] = "-"
-
-        # For each setting, find the effective value by going from base to specific profile
-        # and taking each meaningful value (child overrides parent)
-        for setting_name in all_setting_names:
-            # Walk through the chain from base to target (reversed order) to apply overrides in the right order
-            # The chain is originally [specific, parent, grandparent, ... base], so we need to reverse it
-            for profile in reversed(chain):  # Start with base profile and move to target
-                if setting_name in profile.settings:
-                    value = profile.settings[setting_name]
-                    # Update the value if this profile provides a meaningful value
-                    is_meaningful = False
-                    if value is not None and value != "":
-                        if isinstance(value, list):
-                            if len(value) > 0 and not all((v == "" or v == "-" or v is None) for v in value):
-                                is_meaningful = True
-                        elif isinstance(value, str):
-                            if value.strip() and value != "-":
-                                is_meaningful = True
-                        else:
-                            is_meaningful = True
-
-                        if is_meaningful:
-                            effective_values[setting_name] = value
-                            # Don't break here - continue to allow more specific profiles to override
-
         # Format as a markdown table
-        header = f"| Setting Name | {chain[0].name} |"
+        header = f"| Setting Name | {target_profile.name} |"
         separator = "| --- | --- |"
 
         rows = [header, separator]
 
         # Sort the setting names for consistent output
-        sorted_settings = sorted(effective_values.keys())
+        sorted_settings = sorted(all_setting_names)
 
         for setting_name in sorted_settings:
-            value = effective_values[setting_name]
-
-            # Format the value appropriately
-            if isinstance(value, list):
-                if len(value) == 1:
-                    value = value[0]
+            # For gcode and filament_notes, just show SET if the target profile defines this setting, otherwise -
+            if 'gcode' in setting_name.lower() or setting_name.lower() == 'filament_notes':
+                if setting_name in target_profile.settings:
+                    actual_value = target_profile.settings.get(setting_name)
+                    if actual_value and isinstance(actual_value, str) and actual_value.strip():
+                        value = "SET"
+                    elif isinstance(actual_value, list) and any(str(v).strip() for v in actual_value if isinstance(v, str)):
+                        value = "SET"
+                    elif actual_value:  # Non-empty value that's not a string or list
+                        value = "SET"
+                    else:
+                        value = "-"  # Empty value
                 else:
-                    value = ", ".join(str(v) for v in value)
-
-            # For gcode settings, just indicate if value is set or not
-            if 'gcode' in setting_name.lower():
-                if value and str(value).strip():
-                    value = "SET"
-                else:
-                    value = "-"
+                    value = "-"  # Setting not defined in this profile
             else:
+                # For other settings, use the effective value (original logic)
+                effective_value = "-"
+                # Walk through the chain from base to target (reversed order) to apply overrides in the right order
+                # The chain is originally [specific, parent, grandparent, ... base], so we need to reverse it
+                for profile in reversed(chain):  # Start with base profile and move to target
+                    if setting_name in profile.settings:
+                        profile_value = profile.settings[setting_name]
+                        # Update the value if this profile provides a meaningful value
+                        is_meaningful = False
+                        if profile_value is not None and profile_value != "":
+                            if isinstance(profile_value, list):
+                                if len(profile_value) > 0 and not all((v == "" or v == "-" or v is None) for v in profile_value):
+                                    is_meaningful = True
+                            elif isinstance(profile_value, str):
+                                if profile_value.strip() and profile_value != "-":
+                                    is_meaningful = True
+                            else:
+                                is_meaningful = True
+
+                            if is_meaningful:
+                                effective_value = profile_value
+                                # Don't break here - continue to allow more specific profiles to override
+                value = effective_value
+
+                # Format the value appropriately
+                if isinstance(value, list):
+                    if len(value) == 1:
+                        value = value[0]
+                    else:
+                        value = ", ".join(str(v) for v in value)
+
                 # Convert empty values to "-", leaving "N/A" as is
                 if not value or (isinstance(value, str) and not value.strip()):
                     value = "-"
