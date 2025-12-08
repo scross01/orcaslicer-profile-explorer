@@ -375,6 +375,10 @@ class ProfileAnalyzer:
 
     def format_settings_comparison_table(self, profile_name: str) -> str:
         """Format the settings comparison as a markdown table"""
+        # Get the inheritance chain to access original profiles
+        chain = self.get_profile_inheritance_chain(profile_name)
+        chain.reverse()  # Reverse the chain so it shows from base to specific (left to right as requested)
+
         comparison = self.get_profile_settings_comparison(profile_name)
 
         if not comparison or len(comparison) <= 1:  # Only has setting_names, no actual profiles
@@ -400,13 +404,21 @@ class ProfileAnalyzer:
 
                 # For gcode settings, just indicate if value is set or not
                 if 'gcode' in setting_name.lower():
-                    if value != "-":
-                        # Check if the actual value is empty or just whitespace
-                        if isinstance(value, str) and not value.strip():
-                            value = "-"
-                        else:
+                    # Only mark as SET if the profile actually defines this setting and has a non-empty value
+                    # Find the profile in the chain to check if setting is actually defined there
+                    prof = next((p for p in chain if p.name == profile_name_col), None)
+                    if prof and setting_name in prof.settings:
+                        actual_value = prof.settings.get(setting_name)
+                        if actual_value and isinstance(actual_value, str) and actual_value.strip():
                             value = "SET"
-                    # If it was already "-", leave it as "-"
+                        elif isinstance(actual_value, list) and any(str(v).strip() for v in actual_value if isinstance(v, str)):
+                            value = "SET"
+                        elif actual_value:  # Non-empty value that's not a string or list
+                            value = "SET"
+                        else:
+                            value = "-"  # Empty value
+                    else:
+                        value = "-"  # Setting not defined in this profile
                 else:
                     # Replace N/A with - for non-gcode settings
                     if value == "N/A":
